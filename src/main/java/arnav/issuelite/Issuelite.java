@@ -150,13 +150,13 @@ class Issuelite implements Runnable, IExitCodeGenerator
                     try (PreparedStatement pstmt = dbConnection.prepareStatement(
                              "UPDATE issues SET completed = 1 WHERE id = ?"))
                     {
-                        pstmt.setString(1, finishedIssueUUID);
+                        pstmt.setString(1, command[1]);
 
                         int updated = pstmt.executeUpdate();
 
                         if (updated == 0)
                         {
-                            System.out.println("Issue not found: " + finishedIssueUUID);
+                            System.out.println("Issue not found: " + command[1]);
                             continue;
                         }
                     }
@@ -169,6 +169,11 @@ class Issuelite implements Runnable, IExitCodeGenerator
                 }
                 case "show":
                 {
+                    if (dbConnection == null)
+                    {
+                        System.out.println("Please select a project first.");
+                        continue;
+                    }
                     try (PreparedStatement pstmt = dbConnection.prepareStatement(
                              "SELECT id, issue_name, completed FROM issues");
                          ResultSet rs = pstmt.executeQuery())
