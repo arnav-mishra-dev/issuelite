@@ -22,19 +22,19 @@ class Issuelite implements Runnable, IExitCodeGenerator
     @Option(names = { "-i", "--interactive" }, description = "use in interactive mode")
     private boolean interactive = false;
 
-    @Option(names = { "-n", "--new" }, description = "Create new issue")
+    @Option(names = { "-n", "--new" }, description = "create new issue")
     private String issueName;
 
-    @Option(names = { "-t", "--target" }, description = "Select a target project")
+    @Option(names = { "-t", "--target" }, description = "select a target project")
     private String targetProject;
 
-    @Option(names = { "-c", "--create" }, description = "Create new project")
+    @Option(names = { "-c", "--create" }, description = "create new project")
     private boolean createProject;
 
-    @Option(names = { "-f", "--finish" }, description = "Mark issue as finished")
+    @Option(names = { "-f", "--finish" }, description = "mark issue as finished")
     private String finishedIssue;
 
-    @Option(names = { "-s", "--show" }, description = "Show project issues")
+    @Option(names = { "-s", "--show" }, description = "show project issues")
     private boolean showIssues;
 
     @Override
@@ -131,6 +131,11 @@ class Issuelite implements Runnable, IExitCodeGenerator
                 }
                 case "finish":
                 {
+                    if (dbConnection == null)
+                    {
+                        System.out.println("Please select a project first.");
+                        continue;
+                    }
                     try (PreparedStatement pstmt = dbConnection.prepareStatement(
                              "UPDATE issues SET completed = 1 WHERE id = ?"))
                     {
