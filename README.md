@@ -14,10 +14,11 @@ Issuelite is a CLI issue tracker designed for simplicity and speed when working 
 ## Usage
 
 ```
-Usage: issuelite [-cis] [-f=<finishedIssue>] [-n=<issueName>]
+Usage: issuelite [-chis] [-f=<finishedIssue>] [-n=<issueName>]
                  [-t=<targetProject>]
   -c, --create                  create new project
   -f, --finish=<finishedIssue>  mark issue as finished
+  -h, --help                    show this help message
   -i, --interactive             use in interactive mode
   -n, --new=<issueName>         create new issue
   -s, --show                    show project issues

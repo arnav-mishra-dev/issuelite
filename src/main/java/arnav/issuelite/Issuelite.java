@@ -3,8 +3,11 @@ package arnav.issuelite;
 import java.io.File;
 import java.util.Scanner;
 import java.util.UUID;
+import java.nio.file.Path;
 import picocli.CommandLine.Command;
 import picocli.CommandLine.Option;
+import picocli.CommandLine.Spec;
+import picocli.CommandLine.Model.CommandSpec;
 import picocli.CommandLine.IExitCodeGenerator;
 import java.sql.DriverManager;
 import java.sql.Connection;
@@ -17,7 +20,10 @@ import java.sql.ResultSet;
 class Issuelite implements Runnable, IExitCodeGenerator
 {
     private int exitCode = 1;
-    static final String dbDir = "%s/.config/issuelite/".formatted(System.getProperty("user.home"));
+    private static final String dbDir = Path.of(System.getProperty("user.home"), ".config", "issuelite") + File.separator;
+
+    @Option(names = { "-h", "--help" }, usageHelp = true, description = "show this help message")
+    boolean helpRequested;
 
     @Option(names = { "-i", "--interactive" }, description = "use in interactive mode")
     private boolean interactive = false;
@@ -32,10 +38,13 @@ class Issuelite implements Runnable, IExitCodeGenerator
     private boolean createProject;
 
     @Option(names = { "-f", "--finish" }, description = "mark issue as finished")
-    private String finishedIssue;
+    private String finishedIssueUUID;
 
     @Option(names = { "-s", "--show" }, description = "show project issues")
     private boolean showIssues;
+
+    @Spec
+    private CommandSpec spec;
 
     @Override
     public void run()
@@ -82,19 +91,19 @@ class Issuelite implements Runnable, IExitCodeGenerator
                 }
                 case "create":
                 {
-                    String databaseUrl = "jdbc:sqlite:"+dbDir+command[1]+".db";
-                    new File(dbDir).mkdirs();
-                    try
-                    {
-                        DriverManager.getConnection(databaseUrl);
-                        System.out.println("Successfully created project.");
-                    }
-                    catch (SQLException e)
-                    {
-                        System.out.println(databaseUrl);
-                        System.out.printf("Failed to connect to issue database: %s%n", e.getMessage());
-                        continue;
-                    }
+                    new Thread(() -> {
+                        String databaseUrl = "jdbc:sqlite:"+dbDir+command[1]+".db";
+                        new File(dbDir).mkdirs();
+                        try
+                        {
+                            DriverManager.getConnection(databaseUrl);
+                        }
+                        catch (SQLException e)
+                        {
+                            System.out.println(databaseUrl);
+                            System.out.printf("Failed to connect to issue database: %s%n", e.getMessage());
+                        }
+                    }).start();
                     break;
                 }
                 case "new":
@@ -104,29 +113,31 @@ class Issuelite implements Runnable, IExitCodeGenerator
                         System.out.println("Please select a project first.");
                         continue;
                     }
-                    try (Statement stmt = dbConnection.createStatement())
-                    {
-                        stmt.executeUpdate("""
-                            CREATE TABLE IF NOT EXISTS issues (
-                                id TEXT PRIMARY KEY,
-                                issue_name TEXT NOT NULL,
-                                completed BOOLEAN NOT NULL DEFAULT 0
-                            )
-                        """);
-
-                        try (PreparedStatement pstmt = dbConnection.prepareStatement(
-                                "INSERT INTO issues (id, issue_name, completed) VALUES (?, ?, 0)"))
+                    final Connection dbConn = dbConnection;
+                    new Thread(() -> {
+                        try (Statement stmt = dbConn.createStatement())
                         {
-                            pstmt.setString(1, UUID.randomUUID().toString());
-                            pstmt.setString(2, command[1]);
-                            pstmt.executeUpdate();
+                            stmt.executeUpdate("""
+                                CREATE TABLE IF NOT EXISTS issues (
+                                    id TEXT PRIMARY KEY,
+                                    issue_name TEXT NOT NULL,
+                                    completed BOOLEAN NOT NULL DEFAULT 0
+                                )
+                            """);
+
+                            try (PreparedStatement pstmt = dbConn.prepareStatement(
+                                    "INSERT INTO issues (id, issue_name, completed) VALUES (?, ?, 0)"))
+                            {
+                                pstmt.setString(1, UUID.randomUUID().toString());
+                                pstmt.setString(2, command[1]);
+                                pstmt.executeUpdate();
+                            }
                         }
-                    }
-                    catch (SQLException e)
-                    {
-                        System.out.printf("Failed to connect to issue database: %s%n", e.getMessage());
-                        continue;
-                    }
+                        catch (SQLException e)
+                        {
+                            System.out.printf("Failed to connect to issue database: %s%n", e.getMessage());
+                        }
+                    }).start();
                     break;
                 }
                 case "finish":
@@ -139,13 +150,13 @@ class Issuelite implements Runnable, IExitCodeGenerator
                     try (PreparedStatement pstmt = dbConnection.prepareStatement(
                              "UPDATE issues SET completed = 1 WHERE id = ?"))
                     {
-                        pstmt.setString(1, finishedIssue);
+                        pstmt.setString(1, finishedIssueUUID);
 
                         int updated = pstmt.executeUpdate();
 
                         if (updated == 0)
                         {
-                            System.out.println("Issue not found: " + finishedIssue);
+                            System.out.println("Issue not found: " + finishedIssueUUID);
                             continue;
                         }
                     }
@@ -250,19 +261,19 @@ class Issuelite implements Runnable, IExitCodeGenerator
             }
         }
 
-        if (finishedIssue != null)
+        if (finishedIssueUUID != null)
         {
             try (Connection dbConnection = DriverManager.getConnection(databaseUrl);
                  PreparedStatement pstmt = dbConnection.prepareStatement(
                      "UPDATE issues SET completed = 1 WHERE id = ?"))
             {
-                pstmt.setString(1, finishedIssue);
+                pstmt.setString(1, finishedIssueUUID);
 
                 int updated = pstmt.executeUpdate();
 
                 if (updated == 0)
                 {
-                    System.out.println("Issue not found: " + finishedIssue);
+                    System.out.println("Issue not found: " + finishedIssueUUID);
                     exitCode = 1;
                     return;
                 }
